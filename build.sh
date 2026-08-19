@@ -12,11 +12,7 @@ ANYKERNEL_REPO="https://github.com/ahmed-alnassif/AK3-GKID"
 
 KERNEL_DEFCONFIG="gki_defconfig"
 
-if [ "$NH" = "true" ]; then
-  KERNEL_BRANCH="GKID-NH"
-else
-  KERNEL_BRANCH="GKID-6.1"
-fi
+KERNEL_BRANCH="${KERNEL_BRANCH:-GKID-6.1}"
 
 
 # Set timezone

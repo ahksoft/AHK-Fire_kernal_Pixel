@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-Build scripts and CI configuration for the GKID kernel (Poco X6 Pro / Duchamp). This repo does **not** contain kernel source code. The kernel is cloned at build time from `ahmed-alnassif/GKI-Duchamp-6.1`.
+Build scripts and CI configuration for kernel builds (Poco X6 Pro / Duchamp). This repo does **not** contain kernel source code. The kernel is cloned at build time from `ahksoft2/kernel_devices_google_common`.
 
 All build logic lives in `build.sh` and `functions.sh`. Configs are in `configs/`. Patches are in `patches/` (KernelSU features) and `kernel-patches/` (BBRv3, NTSync, SUSFS, DroidSpaces).
 
@@ -29,6 +29,7 @@ The entire build is driven by env vars. `build.sh` will fail or produce wrong va
 | `KSU_COMPAT` | `true`/`false` | Compat+NoLTO builds (disables some debug configs) |
 | `LTO` | `noneLTO`, `thinLTO`, `fullLTO` | LTO optimization level |
 | `KERNEL_REPO` | URL | Kernel source repo (required, set by CI) |
+| `KERNEL_BRANCH` | branch name | Kernel source branch (fetched dynamically from repo) |
 | `TODO` | `kernel`, `defconfig` | Build kernel or just export defconfig |
 | `TEST` | `yes`/`no` | Dry-run mode (creates dummy zip, exits early) |
 | `DROIDSPACES` | `true`/`false` | DroidSpaces support |
@@ -38,12 +39,7 @@ The entire build is driven by env vars. `build.sh` will fail or produce wrong va
 
 ## Build variants matrix
 
-The CI matrix (defined in `.github/workflows/build.yml`) builds these combos:
-- Vanilla, Vanilla+NoLTO
-- KSU, KSUN
-- KSU+SUSFS, KSUN+SUSFS, Compat+KSU+SUSFS, Compat+KSUN+SUSFS, RSKSU+SUSFS
-
-SUSFS is only included when `KSU_SUSFS=true`. DroidSpaces is disabled for Vanilla builds.
+The CI workflow (`.github/workflows/build.yml`) fetches all branches from the kernel source repo and builds each with the enabled KSU variants. Branch names are dynamic — new branches in the source repo are automatically included.
 
 ## Gotchas
 
