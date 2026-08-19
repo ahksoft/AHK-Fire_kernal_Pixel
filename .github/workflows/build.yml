@@ -147,12 +147,12 @@ jobs:
             find out/ -iname "$mod*.ko" -exec cp {} $WKSU/lkm/ \; 2>/dev/null || true
           done
 
-            find out/drivers/net/wireless/realtek/rtw88 -name "*.ko" -exec cp {} $WKSU/lkm/ \;
-            find out/drivers/staging/r8188eu -name "*.ko" -exec cp {} $WKSU/lkm/ \;
+            find out/drivers/net/wireless/realtek/rtw88 -name "*.ko" -exec cp {} $WKSU/lkm/ \; 2>/dev/null || true
+            find out/drivers/staging/r8188eu -name "*.ko" -exec cp {} $WKSU/lkm/ \; 2>/dev/null || true
 
             if [ -n "$(ls -A $WKSU/lkm 2>/dev/null)" ]; then
                     sed -i "s/version=.*/version=${{ env.RELEASE }}-${{ env.VARIANT }}/" "$WKSU/module.prop"
-                    cp ksrc/drivers/net/wireless/realtek/rtw88/firmware/* "$WKSU/system/etc/firmware/rtw88"
+                    cp ksrc/drivers/net/wireless/realtek/rtw88/firmware/* "$WKSU/system/etc/firmware/rtw88" 2>/dev/null || true
                     echo "Modules found:"
                     ls -la $WKSU/lkm/
                     mkdir -p artifacts
