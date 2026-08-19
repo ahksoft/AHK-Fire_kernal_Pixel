@@ -27,10 +27,6 @@ apply_config "$WORKDIR/configs/compat.config" "$DEFCONFIG"
 echo "⚙️ Adding Universal Performance Tuning"
 apply_config "$WORKDIR/configs/custom.config" "$DEFCONFIG"
 
-if [ "$KSU_COMPAT" = "true" ] || [ "$KSU" = "vnlto" ]; then
-  LTO="noneLTO"
-fi
-
 case "$LTO" in
   thinLTO)
     echo "🔥 ThinLTO optimizations enabled"
@@ -61,12 +57,10 @@ if [ "$NH" = "true" ]; then
   apply_config "$WORKDIR/configs/nethunter.config" "$DEFCONFIG"
 fi
 
-if [ "$KSU_COMPAT" != "true" ]; then
-  echo "🔧 Disable useless debugging configs for performance and resources"
-  cat >> $DEFCONFIG <<EOF
+echo "🔧 Disable useless debugging configs for performance and resources"
+cat >> $DEFCONFIG <<EOF
 # Disable useless debugging configs for performance and resources
 CONFIG_UBSAN=n
 CONFIG_PAGE_OWNER=n
 CONFIG_RCU_TRACE=n
 EOF
-fi

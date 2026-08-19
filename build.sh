@@ -64,9 +64,7 @@ case "$KSU" in
   "RSKSU") VARIANT="ReSukiSU" ;;
   "KSU") VARIANT="KernelSU" ;;
   "KSUN") VARIANT="KernelSU-Next" ;;
-  "no") VARIANT="Vanilla" ;;
-  "vnlto") VARIANT="Vanilla+NoLTO" ;;
-  *) VARIANT="Vanilla" ;;
+  *) VARIANT="KernelSU-Next" ;;
 esac
 susfs_included && VARIANT+="+SuSFS"
 SUSFS_URL="https://gitlab.com/simonpunk/susfs4ksu"
@@ -133,12 +131,6 @@ log "NTSync patches applied"
 log "BBG included"
 wget -qO- "https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh" | bash
 sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' "security/Kconfig"
-
-if [ "$KSU" = "no" ] || [ "$KSU" = "vnlto" ]; then
-  export DROIDSPACES="false"
-  log "DroidSpaces doesn't supported in vanilla builds"
-  VARIANT+="+NoDS"
-fi
 
 if [ "$DROIDSPACES" = "true" ] || [ "$NH" = "true" ]; then
   log "Applying DroidSpaces/NetHunter sysvipc patch"
@@ -221,10 +213,6 @@ if [ "$KSU" = "KSUN" ]; then
 
   fi
 
-fi
-
-if [ "$KSU_COMPAT" = "true" ]; then
-  VARIANT="Compat+NoLTO+${VARIANT}"
 fi
 
 echo "VARIANT=$VARIANT" >> $GITHUB_ENV

@@ -19,35 +19,6 @@ on:
           - "no"
           - "yes"
 
-      LTO:
-        description: enable LTO optimization
-        default: "fullLTO"
-        type: choice
-        options:
-          - "noneLTO"
-          - "thinLTO"
-          - "fullLTO"
-
-      BUILD_VANILLA:
-        description: "Build Vanilla (no KSU)"
-        type: boolean
-        default: true
-
-      BUILD_KSU:
-        description: "Build with KernelSU"
-        type: boolean
-        default: true
-
-      BUILD_KSUN:
-        description: "Build with KernelSU-Next"
-        type: boolean
-        default: true
-
-      BUILD_KSU_SUSFS:
-        description: "Build with KernelSU and its forks (KernelSU Next) + SUSFS"
-        type: boolean
-        default: true
-
       CLEAN_LTO_CACHE:
         description: "Clean ThinLTO cache to fix .config bug"
         type: boolean
@@ -84,7 +55,6 @@ jobs:
           BRANCHES=$(git ls-remote --heads "$KERNEL_REPO" | awk '{print $2}' | sed 's|refs/heads/||' | sort)
           echo "Found branches:"
           echo "$BRANCHES"
-          # Write to file for next step
           echo "$BRANCHES" > /tmp/branches.txt
 
       - id: set-matrix
@@ -94,26 +64,8 @@ jobs:
           while IFS= read -r branch; do
             [ -z "$branch" ] && continue
 
-            if [[ "${{ github.event.inputs.BUILD_VANILLA }}" == "true" ]]; then
-              ENTRIES="${ENTRIES}{\"name\":\"Vanilla-${branch}\",\"KSU\":\"no\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
-              ENTRIES="${ENTRIES}{\"name\":\"Vanilla+NoLTO-${branch}\",\"KSU\":\"vnlto\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
-            fi
-
-            if [[ "${{ github.event.inputs.BUILD_KSU }}" == "true" ]]; then
-              ENTRIES="${ENTRIES}{\"name\":\"KSU-${branch}\",\"KSU\":\"KSU\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
-            fi
-
-            if [[ "${{ github.event.inputs.BUILD_KSUN }}" == "true" ]]; then
-              ENTRIES="${ENTRIES}{\"name\":\"KSUN-${branch}\",\"KSU\":\"KSUN\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
-            fi
-
-            if [[ "${{ github.event.inputs.BUILD_KSU_SUSFS }}" == "true" ]]; then
-              ENTRIES="${ENTRIES}{\"name\":\"KSU+SUSFS-${branch}\",\"KSU\":\"KSU\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-              ENTRIES="${ENTRIES}{\"name\":\"KSUN+SUSFS-${branch}\",\"KSU\":\"KSUN\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-              ENTRIES="${ENTRIES}{\"name\":\"Compat+KSU+SUSFS-${branch}\",\"KSU\":\"KSU\",\"KSU_COMPAT\":\"true\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-              ENTRIES="${ENTRIES}{\"name\":\"Compat+KSUN+SUSFS-${branch}\",\"KSU\":\"KSUN\",\"KSU_COMPAT\":\"true\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-              ENTRIES="${ENTRIES}{\"name\":\"RSKSU+SUSFS-${branch}\",\"KSU\":\"RSKSU\",\"KSU_COMPAT\":\"false\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-            fi
+            ENTRIES="${ENTRIES}{\"name\":\"KSUN-${branch}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
+            ENTRIES="${ENTRIES}{\"name\":\"KSUN+SUSFS-${branch}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
 
           done < /tmp/branches.txt
 
@@ -139,13 +91,12 @@ jobs:
           sudo apt-get install -y ccache gh bc bison flex libssl-dev libelf-dev dwarves cpio
           pip install lxml
 
-      - name: Cache ccache + LTO
+      - name: Cache ccache
         uses: actions/cache@v6.1.0
         id: ccache-cache
         with:
           path: |
             ~/.ccache
-            /dev/shm/thinlto-cache
           key: ccache-${{ matrix.name }}-${{ github.run_id }}
           restore-keys: ccache-${{ matrix.name }}
 
@@ -155,11 +106,10 @@ jobs:
           KERNEL_REPO: ${{ env.KERNEL_REPO }}
           KERNEL_BRANCH: ${{ matrix.KERNEL_BRANCH }}
           KSU: ${{ matrix.KSU }}
-          KSU_COMPAT: ${{ matrix.KSU_COMPAT }}
           KSU_SUSFS: ${{ matrix.KSU_SUSFS }}
+          LTO: fullLTO
           TODO: ${{ inputs.TODO }}
           TEST: ${{ inputs.TEST }}
-          LTO: ${{ inputs.LTO }}
           CLEAN_LTO_CACHE: ${{ inputs.CLEAN_LTO_CACHE }}
           DROIDSPACES: ${{ inputs.DROIDSPACES }}
           NH: ${{ inputs.NH }}
@@ -336,13 +286,12 @@ jobs:
             DROIDSPACES_STATUS="${STATUS_MAP[${{ inputs.DroidSpaces }}]}"
             NH_STATUS="${STATUS_MAP[${{ inputs.NH }}]}"
             NM_STATUS="${STATUS_MAP[${{ inputs.NM }}]}"
-            LTO="${{ inputs.LTO }}"
             cat << EOF
             ### ✨ ${{ env.RELEASE_NAME }} ✨
 
             **Build Information:**
             - 🐧 **Kernel:** ${{ env.RELEASE_NAME }}
-            - 🔥 **LTO optimizations:** ${LTO^}
+            - 🔥 **LTO:** Full LTO
             - 🐉 **Kali NetHunter:** $NH_STATUS
             - 🐳 **DroidSpaces:** $DROIDSPACES_STATUS
             - 🛡️ **SuSFS:** ඞ ${{ env.SUSFS_VERSION }}
