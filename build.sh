@@ -51,7 +51,7 @@ log "Cloning kernel source from $(simplify_gh_url "$KERNEL_REPO")"
 git clone -q --depth=1 --recurse-submodules "$KERNEL_REPO" -b "$KERNEL_BRANCH" "$KSRC"
 
 cd $KSRC
-LINUX_VERSION=$(make kernelversion)
+LINUX_VERSION=$(make --no-print-directory kernelversion 2>/dev/null | tail -1 | tr -d '[:space:]')
 LINUX_VERSION_CODE=${LINUX_VERSION//./}
 DEFCONFIG_FILE=$(find ./arch/arm64/configs -name "$KERNEL_DEFCONFIG")
 echo "LINUX_VERSION=$LINUX_VERSION" >> $GITHUB_ENV
