@@ -3,6 +3,27 @@ name: Kernel Builder
 on:
   workflow_dispatch:
     inputs:
+      KERNEL_BRANCH:
+        description: "Kernel branch to build"
+        required: true
+        type: choice
+        options:
+          - blu_spark-17
+          - blu_spark-17-next
+          - blu_spark-17-susfs
+          - blu_spark-16
+          - blu_spark-16-next
+          - blu_spark-16-susfs
+          - blu_spark-16-gos
+          - blu_spark-16-los
+          - blu_spark-15
+          - blu_spark-15-61
+
+      BUILD_SUSFS:
+        description: "Also build with SUSFS variant"
+        type: boolean
+        default: true
+
       TODO:
         description: To do
         default: "kernel"
@@ -50,27 +71,16 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - id: fetch-branches
-        run: |
-          BRANCHES=$(git ls-remote --heads "$KERNEL_REPO" | awk '{print $2}' | sed 's|refs/heads/||' | sort)
-          echo "Found branches:"
-          echo "$BRANCHES"
-          echo "$BRANCHES" > /tmp/branches.txt
-
       - id: set-matrix
         run: |
-          ENTRIES=""
+          BRANCH="${{ github.event.inputs.KERNEL_BRANCH }}"
+          ENTRIES="{\"name\":\"KSUN-${BRANCH}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
 
-          while IFS= read -r branch; do
-            [ -z "$branch" ] && continue
+          if [[ "${{ github.event.inputs.BUILD_SUSFS }}" == "true" ]]; then
+            ENTRIES="${ENTRIES},{\"name\":\"KSUN+SUSFS-${BRANCH}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
+          fi
 
-            ENTRIES="${ENTRIES}{\"name\":\"KSUN-${branch}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${branch}\"},"
-            ENTRIES="${ENTRIES}{\"name\":\"KSUN+SUSFS-${branch}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${branch}\"},"
-
-          done < /tmp/branches.txt
-
-          ENTRIES="[${ENTRIES%,}]"
-          echo "matrix={\"include\":${ENTRIES}}" >> $GITHUB_OUTPUT
+          echo "matrix={\"include\":[${ENTRIES}]}" >> $GITHUB_OUTPUT
 
   build:
     needs: prepare
@@ -291,6 +301,7 @@ jobs:
 
             **Build Information:**
             - 🐧 **Kernel:** ${{ env.RELEASE_NAME }}
+            - 🌿 **Branch:** ${{ github.event.inputs.KERNEL_BRANCH }}
             - 🔥 **LTO:** Full LTO
             - 🐉 **Kali NetHunter:** $NH_STATUS
             - 🐳 **DroidSpaces:** $DROIDSPACES_STATUS
