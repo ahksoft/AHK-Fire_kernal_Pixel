@@ -284,39 +284,37 @@ jobs:
         run: |
             VARIANTS=$(ls release-artifacts/*.zip 2>/dev/null | xargs -n1 basename | sed 's/.zip//')
 
+            declare -A STATUS_MAP=(["true"]="Enabled" ["false"]="Disabled")
+            DROIDSPACES_STATUS="${STATUS_MAP[${{ inputs.DROIDSPACES }}]}"
+            NH_STATUS="${STATUS_MAP[${{ inputs.NH }}]}"
+            NM_STATUS="${STATUS_MAP[${{ inputs.NM }}]}"
+
             {
-            if [ "${{ inputs.TEST }}" = "yes"  ];then
+            if [ "${{ inputs.TEST }}" = "yes" ]; then
               echo ">[!warning]"
               echo ">This is an empty testing release — please do not download or install!"
               echo ""
             fi
-
-            declare -A STATUS_MAP=(["true"]="Enabled" ["false"]="Disabled")
-
-            DROIDSPACES_STATUS="${STATUS_MAP[${{ inputs.DroidSpaces }}]}"
-            NH_STATUS="${STATUS_MAP[${{ inputs.NH }}]}"
-            NM_STATUS="${STATUS_MAP[${{ inputs.NM }}]}"
-            cat << EOF
-            ### ✨ ${{ env.RELEASE_NAME }} ✨
-
-            **Build Information:**
-            - 🐧 **Kernel:** ${{ env.RELEASE_NAME }}
-            - 🌿 **Branch:** ${{ github.event.inputs.KERNEL_BRANCH }}
-            - 🔥 **LTO:** Full LTO
-            - 🐉 **Kali NetHunter:** $NH_STATUS
-            - 🐳 **DroidSpaces:** $DROIDSPACES_STATUS
-            - 🛡️ **SuSFS:** ඞ ${{ env.SUSFS_VERSION }}
-            - 🥷 **NoMount:** $NM_STATUS
-            - 🔖 **Version:** ${{ env.LINUX_VERSION }}
-            - 📦 **Variants:**
-            $(echo "$VARIANTS" | sed 's/^/  - /')
-            - ⚙️ **Compiler:** ${{ env.COMPILER_STRING }}
-
-            ---
-            **Checksums:**
-            \`\`\`
+            echo "### ✨ ${{ env.RELEASE_NAME }} ✨"
+            echo ""
+            echo "**Build Information:**"
+            echo "- 🐧 **Kernel:** ${{ env.RELEASE_NAME }}"
+            echo "- 🌿 **Branch:** ${{ github.event.inputs.KERNEL_BRANCH }}"
+            echo "- 🔥 **LTO:** Full LTO"
+            echo "- 🐉 **Kali NetHunter:** $NH_STATUS"
+            echo "- 🐳 **DroidSpaces:** $DROIDSPACES_STATUS"
+            echo "- 🛡️ **SuSFS:** ඞ ${{ env.SUSFS_VERSION }}"
+            echo "- 🥷 **NoMount:** $NM_STATUS"
+            echo "- 🔖 **Version:** ${{ env.LINUX_VERSION }}"
+            echo "- 📦 **Variants:**"
+            echo "$VARIANTS" | sed 's/^/  - /'
+            echo "- ⚙️ **Compiler:** ${{ env.COMPILER_STRING }}"
+            echo ""
+            echo "---"
+            echo "**Checksums:**"
+            echo '```'
             cat release-artifacts/checksums.txt
-            \`\`\`
+            echo '```'
             } > release_body.md
 
       - name: Upload All Builds to release repo
