@@ -1,0 +1,122 @@
+name: Build RTL8188FU Monitor Mode Driver
+
+on:
+  workflow_dispatch:
+    inputs:
+      KERNEL_BRANCH:
+        description: "Kernel branch for headers"
+        required: true
+        type: choice
+        options:
+          - blu_spark-16-los
+          - blu_spark-17
+          - blu_spark-17-next
+
+env:
+  KERNEL_REPO: https://github.com/ahksoft2/kernel_devices_google_common
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev
+
+      - name: Clone kernel source for headers
+        run: |
+          git clone -q --depth=1 ${{ env.KERNEL_REPO }} -b ${{ github.event.inputs.KERNEL_BRANCH }} /tmp/kernel
+
+      - name: Get kernel config and prepare headers
+        run: |
+          cd /tmp/kernel
+          make ARCH=arm64 gki_defconfig 2>/dev/null || true
+          make ARCH=arm64 scripts 2>/dev/null || true
+          make ARCH=arm64 prepare 2>/dev/null || true
+
+      - name: Clone rtl8188fu driver
+        run: |
+          git clone https://github.com/kelebek333/rtl8188fu /tmp/rtl8188fu
+
+      - name: Enable monitor mode and build
+        run: |
+          cd /tmp/rtl8188fu
+
+          # Enable monitor mode
+          sed -i 's/CONFIG_WIFI_MONITOR = n/CONFIG_WIFI_MONITOR = y/' Makefile
+
+          # Disable platform-specific builds, use generic
+          sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/' Makefile
+
+          echo "=== Monitor mode config ==="
+          grep "CONFIG_WIFI_MONITOR" Makefile | head -3
+
+          echo "=== Building module ==="
+          make -C /tmp/kernel \
+            M=$(pwd) \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            modules 2>&1
+
+      - name: Find and verify module
+        run: |
+          echo "=== Built modules ==="
+          find /tmp/rtl8188fu -name "*.ko" -exec ls -la {} \;
+          echo ""
+          echo "=== Module info ==="
+          find /tmp/rtl8188fu -name "*.ko" -exec modinfo {} \; 2>/dev/null | head -20
+
+      - name: Package module and firmware
+        run: |
+          mkdir -p release
+          find /tmp/rtl8188fu -name "*.ko" -exec cp {} release/ \;
+
+          # Copy firmware
+          mkdir -p release/firmware
+          cp /tmp/rtl8188fu/firmware/rtl8188fufw.bin release/firmware/ 2>/dev/null || true
+
+          # Create install script
+          cat > release/install.sh << 'INSTALL'
+          #!/bin/sh
+          # Install rtl8188fu monitor mode driver
+          KVER=$(uname -r)
+          MODDIR="/lib/modules/${KVER}/extra"
+          FWDIR="/lib/firmware/rtlwifi"
+
+          echo "[*] Installing rtl8188fu driver for ${KVER}..."
+
+          mkdir -p "${MODDIR}"
+          mkdir -p "${FWDIR}"
+
+          cp *.ko "${MODDIR}/"
+          cp firmware/rtl8188fufw.bin "${FWDIR}/" 2>/dev/null
+
+          depmod -a
+          modprobe rtl8188fu
+
+          echo "[+] Driver installed. To enable monitor mode:"
+          echo "    ip link set wlan1 down"
+          echo "    iw dev wlan1 set type monitor"
+          echo "    ip link set wlan1 up"
+          INSTALL
+          chmod +x release/install.sh
+
+          # Zip everything
+          cd release
+          zip -9 -r $GITHUB_WORKSPACE/rtl8188fu-monitor.zip .
+          echo "RTL8188FU_MONITOR_ZIP=rtl8188fu-monitor.zip" >> $GITHUB_ENV
+
+      - name: Upload module
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: rtl8188fu-monitor-${{ github.run_number }}
+          path: rtl8188fu-monitor.zip
+          retention-days: 7
