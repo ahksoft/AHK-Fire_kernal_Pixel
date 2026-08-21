@@ -44,15 +44,15 @@ jobs:
           cd /tmp/kernel
           LOCALVERSION="${{ github.event.inputs.LOCALVERSION }}"
           echo "Setting CONFIG_LOCALVERSION to: -${LOCALVERSION}"
-          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" .config 2>/dev/null || true
-          make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
-          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" .config
-          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|CONFIG_LOCALVERSION_AUTO=n|' .config
-          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|# CONFIG_LOCALVERSION_AUTO is not set|' .config
           sed -i 's/echo "+"/# echo "+"/g' scripts/setlocalversion
-          grep "CONFIG_LOCALVERSION" .config | head -3
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
+          KCONFIG_CONFIG=$(find . -name ".config" -not -path "./.git/*" | head -1)
+          echo "Config file: $KCONFIG_CONFIG"
+          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" "$KCONFIG_CONFIG"
+          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|# CONFIG_LOCALVERSION_AUTO is not set|' "$KCONFIG_CONFIG"
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
-          grep "CONFIG_LOCALVERSION" .config | head -3
+          KCONFIG_CONFIG=$(find . -name ".config" -not -path "./.git/*" | head -1)
+          grep "CONFIG_LOCALVERSION" "$KCONFIG_CONFIG"
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
       - name: Clone and configure rtl8188fu driver
@@ -102,64 +102,12 @@ jobs:
           mkdir -p release/system/etc/firmware/rtlwifi
           cp "$KO" release/lkm/
           cp /tmp/rtl8188fu/firmware/rtl8188fufw.bin release/system/etc/firmware/rtlwifi/ 2>/dev/null || true
-
-          cat > release/module.prop << EOF
-          id=wirelessksu
-          name=WirelessKSU - RTL8188FU Monitor Mode
-          version=${{ github.event.inputs.LOCALVERSION }}
-          versionCode=100
-          author=AbirHasanAHK
-          description=RTL8188FU WiFi driver with monitor mode for USB adapters (Pixel 6 Pro)
-          minApi=28
-          EOF
-          sed -i 's/^          //' release/module.prop
-
-          cat > release/post-fs-data.sh << 'POSTFS'
-          #!/system/bin/sh
-          MODPATH=${0%/*}
-          LOGFILE=/data/local/tmp/wirelessksu.log
-          echo "=== WirelessKSU post-fs-data ===" > $LOGFILE
-          echo "Kernel: $(uname -r)" >> $LOGFILE
-          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /vendor/firmware/rtlwifi/ 2>> $LOGFILE
-          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /lib/firmware/rtlwifi/ 2>> $LOGFILE
-          for mod in r8188eu; do
-              if lsmod | grep -q "$mod"; then
-                  rmmod $mod 2>> $LOGFILE
-              fi
-          done
-          if ! lsmod | grep -q rtl8188fu; then
-              insmod $MODPATH/lkm/rtl8188fu.ko 2>> $LOGFILE
-          fi
-          echo "Modules:" >> $LOGFILE
-          lsmod | grep -E "rtl|r8188|cfg80211|mac80211" >> $LOGFILE 2>&1
-          POSTFS
-          chmod 755 release/post-fs-data.sh
-
-          cat > release/service.sh << 'SERVICE'
-          #!/system/bin/sh
-          MODPATH=${0%/*}
-          while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 3; done
-          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /vendor/firmware/rtlwifi/ 2>/dev/null
-          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /lib/firmware/rtlwifi/ 2>/dev/null
-          if ! lsmod | grep -q rtl8188fu; then
-              insmod $MODPATH/lkm/rtl8188fu.ko 2>/dev/null
-          fi
-          for iface in /sys/class/net/wlan*; do
-              [ -d "$iface" ] || continue
-              ip link set $(basename "$iface") up 2>/dev/null
-          done
-          SERVICE
-          chmod 755 release/service.sh
-
-          echo "=== Package contents ==="
-          find release/ -type f | sort
-
-          cd release
-          zip -9 -r $GITHUB_WORKSPACE/WirelessKSU.zip .
+          printf 'id=wirelessksu\nname=WirelessKSU - RTL8188FU Monitor Mode\nversion=%s\nversionCode=100\nauthor=AbirHasanAHK\ndescription=RTL8188FU WiFi driver with monitor mode for USB adapters (Pixel 6 Pro)\nminApi=28\n' "${{ github.event.inputs.LOCALVERSION }}" > release/module.prop
+          chmod 755 release/post-fs-data.sh release/service.sh
 
       - name: Upload module
         uses: actions/upload-artifact@v7.0.1
         with:
           name: WirelessKSU-${{ github.event.inputs.KERNEL_BRANCH }}-${{ github.run_number }}
-          path: WirelessKSU.zip
+          path: release/
           retention-days: 14
