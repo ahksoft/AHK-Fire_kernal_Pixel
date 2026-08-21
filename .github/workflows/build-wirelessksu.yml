@@ -12,6 +12,11 @@ on:
           - blu_spark-17
           - blu_spark-17-next
 
+      LOCALVERSION:
+        description: "Kernel localversion (must match running kernel). Example: AHK-Fire/v26.08.21-r12/ca0a3c7e4"
+        required: true
+        default: "AHK-Fire/v26.08.21-r12/ca0a3c7e4"
+
       MODULE_VERSION:
         description: "Module version tag"
         required: false
@@ -38,14 +43,21 @@ jobs:
         run: |
           git clone -q --depth=1 ${{ env.KERNEL_REPO }} -b ${{ github.event.inputs.KERNEL_BRANCH }} /tmp/kernel
 
-      - name: Prepare kernel headers
+      - name: Prepare kernel headers with correct localversion
         run: |
           cd /tmp/kernel
+          LOCALVERSION="${{ github.event.inputs.LOCALVERSION }}"
+          echo "Setting CONFIG_LOCALVERSION to: -${LOCALVERSION}"
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
+          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" .config
+          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|CONFIG_LOCALVERSION_AUTO=n|' .config
+          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|# CONFIG_LOCALVERSION_AUTO is not set|' .config
+          sed -i 's/echo "+"/# echo "+"/g' scripts/setlocalversion
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
+          grep "CONFIG_LOCALVERSION" .config
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
-      - name: Clone rtl8188fu driver (monitor mode)
+      - name: Clone and build rtl8188fu (monitor mode)
         run: |
           git clone https://github.com/kelebek333/rtl8188fu /tmp/rtl8188fu
           cd /tmp/rtl8188fu
@@ -53,9 +65,6 @@ jobs:
           sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/' Makefile
           sed -i 's/#define __PHYDM_FEATURES$/#define __PHYDM_FEATURES_H__/' hal/phydm/phydm_features.h
 
-      - name: Build rtl8188fu module
-        run: |
-          cd /tmp/rtl8188fu
           make -C /tmp/kernel \
             M=$(pwd) \
             CONFIG_RTL8188FU=m \
@@ -67,60 +76,33 @@ jobs:
             USER_EXTRA_CFLAGS="-DCONFIG_LITTLE_ENDIAN -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT -w" \
             modules 2>&1
 
-      - name: Clone and build r8188eu (managed mode)
-        run: |
-          git clone --depth=1 https://github.com/lwfinger/r8188eu /tmp/r8188eu || \
-          git clone --depth=1 https://github.com/aircrack-ng/rtl8188eu /tmp/r8188eu || true
+          echo "=== Module vermagic ==="
+          strings rtl8188fu.ko | grep vermagic
 
-          if [ -d /tmp/r8188eu ]; then
-            cd /tmp/r8188eu
-            make -C /tmp/kernel \
-              M=$(pwd) \
-              ARCH=arm64 \
-              CROSS_COMPILE=aarch64-linux-gnu- \
-              LLVM=1 \
-              LLVM_IAS=1 \
-              USER_EXTRA_CFLAGS="-w" \
-              modules 2>&1 || echo "r8188eu build failed or not available"
-          else
-            echo "r8188eu source not found, skipping"
-          fi
-
-      - name: Collect in-kernel modules (if available)
+      - name: Collect in-kernel modules
         run: |
           mkdir -p /tmp/ko-modules
           cd /tmp/kernel
-
           for mod in cfg80211 mac80211 rfkill; do
             find out/ -iname "${mod}.ko" -exec cp {} /tmp/ko-modules/ \; 2>/dev/null || true
           done
-
-          find out/drivers/net/wireless/realtek/rtw88 -name "*.ko" -exec cp {} /tmp/ko-modules/ \; 2>/dev/null || true
-          find out/drivers/staging/r8188eu -name "*.ko" -exec cp {} /tmp/ko-modules/ \; 2>/dev/null || true
           echo "In-kernel modules found:"
           ls -la /tmp/ko-modules/ 2>/dev/null || echo "none"
 
       - name: Package KernelSU module
         run: |
           MODDIR="modules/WirelessKSU"
-          mkdir -p "$MODDIR/system/vendor/lib/modules"
-          mkdir -p "$MODDIR/system/vendor/firmware/rtlwifi"
+          mkdir -p "$MODDIR/lkm"
+          mkdir -p "$MODDIR/system/etc/firmware/rtlwifi"
 
-          cp /tmp/rtl8188fu/rtl8188fu.ko "$MODDIR/system/vendor/lib/modules/" 2>/dev/null
-          cp /tmp/rtl8188fu/firmware/rtl8188fufw.bin "$MODDIR/system/vendor/firmware/rtlwifi/" 2>/dev/null || true
-
-          if [ -d /tmp/r8188eu ] && ls /tmp/r8188eu/*.ko 1>/dev/null 2>&1; then
-            cp /tmp/r8188eu/*.ko "$MODDIR/system/vendor/lib/modules/" 2>/dev/null || true
-          fi
+          cp /tmp/rtl8188fu/rtl8188fu.ko "$MODDIR/lkm/"
+          cp /tmp/rtl8188fu/firmware/rtl8188fufw.bin "$MODDIR/system/etc/firmware/rtlwifi/" 2>/dev/null || true
 
           mkdir -p /tmp/ko-modules
-          cp /tmp/ko-modules/*.ko "$MODDIR/system/vendor/lib/modules/" 2>/dev/null || true
-
-          KVER=$(ls /tmp/kernel/out/ -1 | grep "6\." | head -1)
-          if [ -z "$KVER" ]; then
-            KVER=$(cat /tmp/kernel/Makefile | head -5 | grep VERSION -A2 | tr '\n' '.' | sed 's/.*VERSION = //;s/\.$//')
-            KVER="${KVER}$(cat /tmp/kernel/Makefile | head -20 | grep PATCHLEVEL | sed 's/PATCHLEVEL = /./')"
-          fi
+          for ko in /tmp/ko-modules/*.ko; do
+            [ -f "$ko" ] || continue
+            cp "$ko" "$MODDIR/lkm/"
+          done
 
           cat > "$MODDIR/module.prop" << EOF
           id=wirelessksu
@@ -128,89 +110,52 @@ jobs:
           version=${{ github.event.inputs.MODULE_VERSION }}
           versionCode=$(echo ${{ github.event.inputs.MODULE_VERSION }} | tr -d '.')
           author=AbirHasanAHK
-          description=RTL8188FU WiFi driver with monitor mode support for USB adapters
-          updateJson=
+          description=RTL8188FU WiFi driver with monitor mode for USB adapters
           minApi=28
           EOF
           sed -i 's/^          //' "$MODDIR/module.prop"
 
           cat > "$MODDIR/post-fs-data.sh" << 'POSTFS'
           #!/system/bin/sh
-          # WirelessKSU - Load WiFi modules on boot
-          MODDIR=$(dirname "$0")
-          KVER=$(uname -r)
-          MODULES_DIR="$MODDIR/system/vendor/lib/modules"
-          FW_DIR="$MODDIR/system/vendor/firmware"
-
-          # Wait for system
-          while [ ! -d /vendor/lib/modules ]; do
-            sleep 1
+          MODPATH=${0%/*}
+          LOGFILE=/data/local/tmp/wirelessksu.log
+          echo "=== WirelessKSU post-fs-data ===" > $LOGFILE
+          echo "Kernel: $(uname -r)" >> $LOGFILE
+          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /vendor/firmware/rtlwifi/ 2>> $LOGFILE
+          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /lib/firmware/rtlwifi/ 2>> $LOGFILE
+          for mod in r8188eu; do
+              if lsmod | grep -q "$mod"; then
+                  echo "Removing conflicting module: $mod" >> $LOGFILE
+                  rmmod $mod 2>> $LOGFILE
+              fi
           done
-
-          # Copy firmware
-          if [ -d "$FW_DIR/rtlwifi" ]; then
-            cp -f "$FW_DIR/rtlwifi/"* /vendor/firmware/rtlwifi/ 2>/dev/null
-            cp -f "$FW_DIR/rtlwifi/"* /lib/firmware/rtlwifi/ 2>/dev/null
+          if ! lsmod | grep -q rtl8188fu; then
+              echo "Loading rtl8188fu..." >> $LOGFILE
+              insmod $MODPATH/lkm/rtl8188fu.ko 2>> $LOGFILE
+              echo "exit: $?" >> $LOGFILE
           fi
-
-          # Load modules
-          for ko in "$MODULES_DIR"/*.ko; do
-            [ -f "$ko" ] || continue
-            modname=$(basename "$ko" .ko)
-            # Remove existing module first
-            rmmod "$modname" 2>/dev/null
-            insmod "$ko" 2>/dev/null && echo "Loaded $modname" || echo "Failed to load $modname"
-          done
+          echo "Modules:" >> $LOGFILE
+          lsmod | grep -E "rtl|r8188|cfg80211|mac80211" >> $LOGFILE 2>&1
           POSTFS
-          sed -i 's/^          //' "$MODDIR/post-fs-data.sh"
           chmod 755 "$MODDIR/post-fs-data.sh"
 
           cat > "$MODDIR/service.sh" << 'SERVICE'
           #!/system/bin/sh
-          # WirelessKSU - Enable WiFi interface after boot
-          MODDIR=$(dirname "$0")
-          KVER=$(uname -r)
-          MODULES_DIR="$MODDIR/system/vendor/lib/modules"
-          FW_DIR="$MODDIR/system/vendor/firmware"
-
-          # Wait for boot completion
-          while [ "$(getprop sys.boot_completed)" != "1" ]; do
-            sleep 3
-          done
-
-          # Copy firmware
-          if [ -d "$FW_DIR/rtlwifi" ]; then
-            mkdir -p /vendor/firmware/rtlwifi 2>/dev/null
-            cp -f "$FW_DIR/rtlwifi/"* /vendor/firmware/rtlwifi/ 2>/dev/null
-            mkdir -p /lib/firmware/rtlwifi 2>/dev/null
-            cp -f "$FW_DIR/rtlwifi/"* /lib/firmware/rtlwifi/ 2>/dev/null
+          MODPATH=${0%/*}
+          while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 3; done
+          mkdir -p /vendor/firmware/rtlwifi
+          mkdir -p /lib/firmware/rtlwifi
+          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /vendor/firmware/rtlwifi/ 2>/dev/null
+          cp -f $MODPATH/system/etc/firmware/rtlwifi/rtl8188fufw.bin /lib/firmware/rtlwifi/ 2>/dev/null
+          if ! lsmod | grep -q rtl8188fu; then
+              insmod $MODPATH/lkm/rtl8188fu.ko 2>/dev/null
           fi
-
-          # Ensure modules are loaded
-          for ko in "$MODULES_DIR"/*.ko; do
-            [ -f "$ko" ] || continue
-            modname=$(basename "$ko" .ko)
-            if ! lsmod | grep -q "$modname"; then
-              insmod "$ko" 2>/dev/null && echo "Loaded $modname on service"
-            fi
-          done
-
-          # Bring up WiFi interfaces
           for iface in /sys/class/net/wlan*; do
-            [ -d "$iface" ] || continue
-            ifname=$(basename "$iface")
-            ip link set "$ifname" up 2>/dev/null
-            echo "Brought up $ifname"
+              [ -d "$iface" ] || continue
+              ip link set $(basename "$iface") up 2>/dev/null
           done
           SERVICE
-          sed -i 's/^          //' "$MODDIR/service.sh"
           chmod 755 "$MODDIR/service.sh"
-
-          cat > "$MODDIR/system.prop" << 'SYSPROP'
-          persist.vendor.wirelessksu.driver=rtl8188fu
-          persist.vendor.wirelessksu.monitor=enabled
-          SYSPROP
-          sed -i 's/^          //' "$MODDIR/system.prop"
 
           echo "=== Module contents ==="
           find "$MODDIR" -type f | sort
@@ -220,14 +165,11 @@ jobs:
 
       - name: Verify module
         run: |
-          echo "=== Module structure ==="
+          echo "=== ZIP contents ==="
           unzip -l WirelessKSU.zip
           echo ""
-          echo "=== Module.prop ==="
+          echo "=== module.prop ==="
           unzip -p WirelessKSU.zip WirelessKSU/module.prop
-          echo ""
-          echo "=== .ko files in module ==="
-          unzip -l WirelessKSU.zip | grep "\.ko"
           echo ""
           echo "=== ZIP size ==="
           ls -lh WirelessKSU.zip
