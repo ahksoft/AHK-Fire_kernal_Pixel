@@ -61,7 +61,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            USER_EXTRA_CFLAGS="-DCONFIG_LITTLE_ENDIAN -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT" \
+            USER_EXTRA_CFLAGS="-DCONFIG_LITTLE_ENDIAN -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT -w" \
             modules 2>&1
 
       - name: Verify and package
