@@ -19,6 +19,7 @@ sed -i 's/#define __PHYDM_FEATURES$/#define __PHYDM_FEATURES_H__/' hal/phydm/phy
 
 # Build
 make -C "$KERNEL_SRC" \
+  O=/tmp/out_gs \
   M="$(pwd)" \
   CONFIG_RTL8188FU=m \
   CONFIG_WIFI_MONITOR=y \
@@ -34,9 +35,8 @@ strings rtl8188fu.ko | grep vermagic
 
 # Collect in-kernel modules
 mkdir -p /tmp/ko-modules
-cd "$KERNEL_SRC"
 for mod in cfg80211 mac80211 rfkill; do
-  find . -iname "${mod}.ko" -not -path "./.git/*" -exec cp {} /tmp/ko-modules/ \; 2>/dev/null || true
+  find /tmp/out_gs -iname "${mod}.ko" -exec cp {} /tmp/ko-modules/ \; 2>/dev/null || true
 done
 echo "In-kernel modules:"
 ls -la /tmp/ko-modules/ || echo "none"

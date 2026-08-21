@@ -45,15 +45,13 @@ jobs:
           LOCALVERSION="${{ github.event.inputs.LOCALVERSION }}"
           echo "Setting CONFIG_LOCALVERSION to: -${LOCALVERSION}"
           sed -i 's/echo "+"/# echo "+"/g' scripts/setlocalversion
-          make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
-          KCONFIG_CONFIG=$(find . -name ".config" -not -path "./.git/*" | head -1)
-          echo "Config file: $KCONFIG_CONFIG"
-          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" "$KCONFIG_CONFIG"
-          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|# CONFIG_LOCALVERSION_AUTO is not set|' "$KCONFIG_CONFIG"
-          make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
-          KCONFIG_CONFIG=$(find . -name ".config" -not -path "./.git/*" | head -1)
-          grep "CONFIG_LOCALVERSION" "$KCONFIG_CONFIG"
-          make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig O=/tmp/out_gs
+          echo "Config file: /tmp/out_gs/.config"
+          sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"-${LOCALVERSION}\"|" /tmp/out_gs/.config
+          sed -i 's|CONFIG_LOCALVERSION_AUTO=y|# CONFIG_LOCALVERSION_AUTO is not set|' /tmp/out_gs/.config
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig O=/tmp/out_gs
+          grep "CONFIG_LOCALVERSION" /tmp/out_gs/.config
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare O=/tmp/out_gs -j$(nproc)
 
       - name: Clone and configure rtl8188fu driver
         run: |
@@ -69,6 +67,7 @@ jobs:
         run: |
           cd /tmp/rtl8188fu
           make -C /tmp/kernel \
+            O=/tmp/out_gs \
             M=$(pwd) \
             CONFIG_RTL8188FU=m \
             CONFIG_WIFI_MONITOR=y \
