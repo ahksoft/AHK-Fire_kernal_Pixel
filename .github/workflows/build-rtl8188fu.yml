@@ -54,6 +54,8 @@ jobs:
           cd /tmp/rtl8188fu
           make -C /tmp/kernel \
             M=$(pwd) \
+            CONFIG_RTL8188FU=m \
+            CONFIG_WIFI_MONITOR=y \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             LLVM=1 \
