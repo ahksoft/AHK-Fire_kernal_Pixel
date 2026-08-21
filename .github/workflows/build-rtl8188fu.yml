@@ -36,28 +36,25 @@ jobs:
       - name: Get kernel config and prepare headers
         run: |
           cd /tmp/kernel
-          make ARCH=arm64 gki_defconfig 2>/dev/null || true
-          make ARCH=arm64 scripts 2>/dev/null || true
-          make ARCH=arm64 prepare 2>/dev/null || true
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
+          make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
       - name: Clone rtl8188fu driver
         run: |
           git clone https://github.com/kelebek333/rtl8188fu /tmp/rtl8188fu
 
-      - name: Enable monitor mode and build
+      - name: Enable monitor mode
         run: |
           cd /tmp/rtl8188fu
-
-          # Enable monitor mode
           sed -i 's/CONFIG_WIFI_MONITOR = n/CONFIG_WIFI_MONITOR = y/' Makefile
-
-          # Disable platform-specific builds, use generic
           sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/' Makefile
-
           echo "=== Monitor mode config ==="
           grep "CONFIG_WIFI_MONITOR" Makefile | head -3
 
-          echo "=== Building module ==="
+      - name: Build module
+        run: |
+          cd /tmp/rtl8188fu
           make -C /tmp/kernel \
             M=$(pwd) \
             ARCH=arm64 \
