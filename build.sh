@@ -8,7 +8,7 @@ KERNEL_NAME="AHK-Fire"
 USER="ahksoft"
 HOST="AHK-Fire Kernel Pixel"
 TIMEZONE="Asia/Damascus"
-ANYKERNEL_REPO="https://github.com/ahksoft/AHK-Fire"
+ANYKERNEL_REPO="https://github.com/ahksoft/AK3-Fire"
 
 KERNEL_DEFCONFIG="gki_defconfig"
 
