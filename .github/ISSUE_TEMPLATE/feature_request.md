@@ -20,7 +20,7 @@ A clear and concise description of what you want to happen. Be specific about:
 Any alternative solutions, workarounds, or patches you've tried.
 
 **Device & Environment (if relevant)**
-- **Device:** [e.g., Poco X6 Pro (duchamp)]
+- **Device:** [e.g., Google Pixel 6 Pro]
 - **ROM:** [e.g., HyperOS 3.0, AOSP 16]
 - **Current kernel variant:** [e.g., KernelSU, Vanilla]
 

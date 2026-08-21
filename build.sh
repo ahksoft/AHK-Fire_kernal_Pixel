@@ -6,7 +6,7 @@ RELEASE_DIR="$WORKDIR/artifacts"
 
 KERNEL_NAME="AHK-Fire"
 USER="ahksoft"
-HOST="Duchamp"
+HOST="AHK-Fire Kernel Pixel"
 TIMEZONE="Asia/Damascus"
 ANYKERNEL_REPO="https://github.com/ahksoft/AHK-Fire"
 
@@ -309,7 +309,7 @@ git clone -q --depth=1 $ANYKERNEL_REPO anykernel
 # Set kernel string in anykernel
 AK3_ZIP_NAME=${AK3_ZIP_NAME//REL/$RELEASE}
 sed -i \
-  "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} ${LINUX_VERSION} ${VARIANT} for Duchamp by Abir Hasan AHK (ahksoft)/g" \
+  "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} ${LINUX_VERSION} ${VARIANT} for Google Pixel 6 Pro by Abir Hasan AHK (ahksoft)/g" \
   $WORKDIR/anykernel/anykernel.sh
 
 # Zip the anykernel

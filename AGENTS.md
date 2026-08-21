@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-Build scripts and CI configuration for kernel builds (Poco X6 Pro / Duchamp).
+Build scripts and CI configuration for kernel builds (Google Pixel 6 Pro / AHK-Fire Kernel Pixel).
 This repo does **not** contain kernel source code. The kernel is cloned at build time from `ahksoft2/kernel_devices_google_common`.
 
 All build logic lives in `build.sh` and `functions.sh`. Configs are in `configs/`. Patches are in `patches/` (KernelSU features) and `kernel-patches/` (BBRv3, NTSync, SUSFS, DroidSpaces).

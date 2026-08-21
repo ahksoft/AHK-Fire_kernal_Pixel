@@ -11,10 +11,10 @@ assignees: ahmed-alnassif
 A clear and concise description of the issue (e.g., bootloop, WiFi not working, random reboot).
 
 **Device & Environment**
-- **Device:** [e.g., Poco X6 Pro (duchamp)]
+- **Device:** [e.g., Google Pixel 6 Pro]
 - **ROM:** [e.g., HyperOS 3.0, AOSP 16]
-- **Kernel variant:** [e.g., KernelSU, KernelSU Next, SukiSU Ultra, Vanilla, ReSukiSU]
-- **Kernel version:** [e.g., `6.1.175-GKID/v26.07.26-r443/349b806bc`]
+- **Kernel variant:** [e.g., KernelSU, KernelSU Next, SukiSU-Ultra]
+- **Kernel version:** [e.g., `6.1.175-AHK-Fire/v26.07.26-r443/349b806bc`]
 
 **To Reproduce**
 Steps to reproduce the behavior:
