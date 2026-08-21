@@ -27,29 +27,26 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev lld clang llvm
 
       - name: Clone kernel source for headers
         run: |
           git clone -q --depth=1 ${{ env.KERNEL_REPO }} -b ${{ github.event.inputs.KERNEL_BRANCH }} /tmp/kernel
 
-      - name: Get kernel config and prepare headers
+      - name: Prepare kernel headers
         run: |
           cd /tmp/kernel
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 gki_defconfig
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 olddefconfig
           make ARCH=arm64 LLVM=1 LLVM_IAS=1 modules_prepare -j$(nproc)
 
-      - name: Clone rtl8188fu driver
+      - name: Clone and configure rtl8188fu driver
         run: |
           git clone https://github.com/kelebek333/rtl8188fu /tmp/rtl8188fu
-
-      - name: Enable monitor mode
-        run: |
           cd /tmp/rtl8188fu
           sed -i 's/CONFIG_WIFI_MONITOR = n/CONFIG_WIFI_MONITOR = y/' Makefile
           sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/' Makefile
-          echo "=== Monitor mode config ==="
+          echo "=== Monitor mode enabled ==="
           grep "CONFIG_WIFI_MONITOR" Makefile | head -3
 
       - name: Build module
@@ -63,53 +60,36 @@ jobs:
             LLVM_IAS=1 \
             modules 2>&1
 
-      - name: Find and verify module
+      - name: Verify and package
         run: |
           echo "=== Built modules ==="
           find /tmp/rtl8188fu -name "*.ko" -exec ls -la {} \;
-          echo ""
-          echo "=== Module info ==="
-          find /tmp/rtl8188fu -name "*.ko" -exec modinfo {} \; 2>/dev/null | head -20
 
-      - name: Package module and firmware
-        run: |
           mkdir -p release
           find /tmp/rtl8188fu -name "*.ko" -exec cp {} release/ \;
-
-          # Copy firmware
           mkdir -p release/firmware
           cp /tmp/rtl8188fu/firmware/rtl8188fufw.bin release/firmware/ 2>/dev/null || true
 
-          # Create install script
           cat > release/install.sh << 'INSTALL'
           #!/bin/sh
-          # Install rtl8188fu monitor mode driver
           KVER=$(uname -r)
           MODDIR="/lib/modules/${KVER}/extra"
           FWDIR="/lib/firmware/rtlwifi"
-
           echo "[*] Installing rtl8188fu driver for ${KVER}..."
-
-          mkdir -p "${MODDIR}"
-          mkdir -p "${FWDIR}"
-
+          mkdir -p "${MODDIR}" "${FWDIR}"
           cp *.ko "${MODDIR}/"
           cp firmware/rtl8188fufw.bin "${FWDIR}/" 2>/dev/null
-
           depmod -a
           modprobe rtl8188fu
-
-          echo "[+] Driver installed. To enable monitor mode:"
+          echo "[+] Done. Enable monitor mode:"
           echo "    ip link set wlan1 down"
           echo "    iw dev wlan1 set type monitor"
           echo "    ip link set wlan1 up"
           INSTALL
           chmod +x release/install.sh
 
-          # Zip everything
           cd release
           zip -9 -r $GITHUB_WORKSPACE/rtl8188fu-monitor.zip .
-          echo "RTL8188FU_MONITOR_ZIP=rtl8188fu-monitor.zip" >> $GITHUB_ENV
 
       - name: Upload module
         uses: actions/upload-artifact@v7.0.1
