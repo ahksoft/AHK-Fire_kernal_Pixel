@@ -39,6 +39,7 @@ echo "RELEASE=$RELEASE" >> $GITHUB_ENV
 
 # Logging
 BUILD_LOGS="$RELEASE_DIR/build.log"
+MAKE_LOGS="$RELEASE_DIR/make.log"
 exec > >(tee -a "$BUILD_LOGS") 2>&1
 
 trap 'echo "=== SCRIPT EXIT at $(date) ===" >> "$BUILD_LOGS"' EXIT
@@ -296,7 +297,7 @@ if [[ $TODO == "defconfig" ]]; then
 fi
 
 echo "::group::Building kernel..."
-make ${MAKE_ARGS[@]} CC="ccache clang" CXX="ccache clang++"
+make ${MAKE_ARGS[@]} CC="ccache clang" CXX="ccache clang++" > "$MAKE_LOGS" 2>&1
 echo "::endgroup::"
 
 # Return to the initial working directory

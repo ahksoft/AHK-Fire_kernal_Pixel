@@ -227,13 +227,30 @@ jobs:
           path: build-env-${{ matrix.name }}.txt
           retention-days: 1
 
+      - name: Check artifact sizes
+        if: always()
+        run: |
+          echo "=== Artifact sizes ==="
+          du -sh artifacts/* 2>/dev/null || true
+          echo ""
+          echo "=== Total artifacts size ==="
+          du -sh artifacts/ 2>/dev/null || true
+          echo ""
+          echo "=== build.log size ==="
+          ls -lh artifacts/build.log 2>/dev/null || echo "No build.log"
+
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
           name: build-${{ matrix.name }}-${{ github.run_number }}
-          path: artifacts/
+          path: |
+            artifacts/*.zip
+            artifacts/*.txt
+            artifacts/*.md
+            artifacts/make.log
           retention-days: 1
+          compression-level: 6
 
   upload-all:
     needs: build
@@ -252,8 +269,9 @@ jobs:
           name: all-builds-${{ github.run_number }}
           retention-days: 7
           path: |
-            downloaded-artifacts/artifacts/*.txt
-            downloaded-artifacts/artifacts/*.zip
+            downloaded-artifacts/*.zip
+            downloaded-artifacts/*.txt
+            downloaded-artifacts/*.md
 
   release:
     needs: build
