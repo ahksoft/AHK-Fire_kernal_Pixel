@@ -4,15 +4,15 @@
 WORKDIR="$(pwd)"
 RELEASE_DIR="$WORKDIR/artifacts"
 
-KERNEL_NAME="GKID"
-USER="ahmed-alnassif"
-HOST="GKI-Duchamp"
+KERNEL_NAME="AHK-Fire"
+USER="ahksoft"
+HOST="Duchamp"
 TIMEZONE="Asia/Damascus"
-ANYKERNEL_REPO="https://github.com/ahmed-alnassif/AK3-GKID"
+ANYKERNEL_REPO="https://github.com/ahksoft/AHK-Fire"
 
 KERNEL_DEFCONFIG="gki_defconfig"
 
-KERNEL_BRANCH="${KERNEL_BRANCH:-GKID-6.1}"
+KERNEL_BRANCH="${KERNEL_BRANCH:-blu_spark-17}"
 
 
 # Set timezone
@@ -22,7 +22,7 @@ RELEASE="$(date +v%y.%m.%d)${RUN_NUM}"
 
 mkdir -p $RELEASE_DIR
 
-GKI_RELEASES_REPO="https://github.com/ahmed-alnassif/GKI-Duchamp"
+RELEASE_REPO="ahksoft/AHK-Fire_kernal_Pixel"
 AK3_ZIP_NAME="$KERNEL_NAME-VARIANT-REL-KVER.zip"
 OUTDIR="$WORKDIR/out"
 KSRC="$WORKDIR/ksrc"
@@ -32,7 +32,7 @@ PATCHES_DIR="$WORKDIR/patches"
 # Import functions
 source $WORKDIR/functions.sh
 
-echo "RELEASE_REPO=$(simplify_gh_url "$GKI_RELEASES_REPO")" >> $GITHUB_ENV
+echo "RELEASE_REPO=$RELEASE_REPO" >> $GITHUB_ENV
 echo "KERNEL_NAME=${KERNEL_NAME}${RUN_NUM}" >> $GITHUB_ENV
 echo "RELEASE_NAME=$KERNEL_NAME $RELEASE" >> $GITHUB_ENV
 echo "RELEASE=$RELEASE" >> $GITHUB_ENV
@@ -60,13 +60,12 @@ cd $WORKDIR
 # Set Kernel variant
 log "Setting Kernel variant..."
 case "$KSU" in
-  "SKSU") VARIANT="SukiSU-Ultra" ;;
-  "RSKSU") VARIANT="ReSukiSU" ;;
+  "SKSU") VARIANT="SukiSU" ;;
   "KSU") VARIANT="KernelSU" ;;
   "KSUN") VARIANT="KernelSU-Next" ;;
   *) VARIANT="KernelSU-Next" ;;
 esac
-susfs_included && VARIANT+="+SuSFS"
+susfs_included && VARIANT+="+SUSFS"
 SUSFS_URL="https://gitlab.com/simonpunk/susfs4ksu"
 SUSFS_DIR="$WORKDIR/susfs"
 SUSFS_PATCHES="${SUSFS_DIR}/kernel_patches"
@@ -74,14 +73,10 @@ SUSFS_BRANCH="gki-android14-6.1"
 SUSFS_PATCH="gki-android14-6.1"
 
 log "Changelog of repos"
-gh api "repos/ahmed-alnassif/GKI-Duchamp-6.1/commits?sha=${KERNEL_BRANCH}&per_page=10" --jq '.[] | "- [" + .sha[0:7] + "](" + .html_url + ") " + (.commit.message | split("\n")[0])'\
-> "$RELEASE_DIR/android_kernel-6.1_changelog.txt"
-gh api 'repos/tiann/KernelSU/commits?sha=main&per_page=10' --jq '.[] | "- [" + .sha[0:7] + "](" + .html_url + ") " + (.commit.message | split("\n")[0])'\
-> "$RELEASE_DIR/ksu_changelog.txt"
-#gh api 'repos/SukiSU-Ultra/SukiSU-Ultra/commits?sha=builtin&per_page=10' --jq '.[] | "- [" + .sha[0:7] + "](" + .html_url + ") " + (.commit.message | split("\n")[0])'\
-#> "$RELEASE_DIR/sukisu_changelog.txt"
+gh api "repos/$KERNEL_REPO/commits?sha=${KERNEL_BRANCH}&per_page=10" --jq '.[] | "- [" + .sha[0:7] + "](" + .html_url + ") " + (.commit.message | split("\n")[0])'\
+> "$RELEASE_DIR/kernel_changelog.txt" 2>/dev/null || true
 gh api 'repos/KernelSU-Next/KernelSU-Next/commits?sha=dev&per_page=10' --jq '.[] | "- [" + .sha[0:7] + "](" + .html_url + ") " + (.commit.message | split("\n")[0])'\
-> "$RELEASE_DIR/ksun_changelog.txt"
+> "$RELEASE_DIR/ksun_changelog.txt" 2>/dev/null || true
 
 # Download Clang
 echo "::group::Downloading Clang..."
@@ -138,45 +133,28 @@ if [ "$DROIDSPACES" = "true" ] || [ "$NH" = "true" ]; then
 fi
 
 if [ "$KSU" = "SKSU" ]; then
-  log "SukiSU-Ultra included"
+  log "SukiSU included"
   if susfs_included; then
-    #install_ksu "ahmed-alnassif/SukiSU-Ultra" "builtin"
     install_ksu "SukiSU-Ultra/SukiSU-Ultra" "builtin"
   else
     install_ksu "SukiSU-Ultra/SukiSU-Ultra" "main"
   fi
 
   if susfs_included; then
-
     clone_susfs
     apply_susfs_patches
-
   fi
-
-fi
-
-if susfs_included && [ "$KSU" = "RSKSU" ]; then
-  log "ReSukiSU included"
-  install_ksu "ReSukiSU/ReSukiSU" "main"
-
-  clone_susfs
-  apply_susfs_patches
 
 fi
 
 if [ "$KSU" = "KSU" ]; then
   log "KernelSU included"
-  if ! susfs_included; then
-    install_ksu "tiann/KernelSU" "main"
-  fi
-
   if susfs_included; then
     VARIANT+="+Multiple-Managers"
     git clone "https://github.com/tiann/KernelSU" && echo "[+] Repository cloned."
     clone_susfs
 
     cd KernelSU
-    #git reset --hard "61c6313"
     git reset --soft HEAD~1
     patch -p1 --fuzz=3 < "$PATCHES_DIR/0001-feat-avc-log-spoofing.patch"
     patch -p1 --fuzz=3 < "$PATCHES_DIR/0001-feat-add-multiple-managers.patch"
@@ -185,15 +163,16 @@ if [ "$KSU" = "KSU" ]; then
     patch -p1 --fuzz=3 < "$PATCHES_DIR/0001-feat-escape-persistent_allow_list-to-kthread.patch"
     patch -p1 --fuzz=3 < "$PATCHES_DIR/0001-feat-supercalls-allow-userspace-to-pull-list-entries.patch"
     sed -i "/    git pull && echo \"\[+\] Repository updated.\"/d" "kernel/setup.sh"
-    git config --global user.email "mr.ahmed.nassif@gmail.com"
-    git config --global user.name "Ahmed Al-Nassif"
+    git config --global user.email "ahks9f533@gmail.com"
+    git config --global user.name "Abir Hasan AHK"
     git add .
     git commit -m "susfs patch"
     cd ..
     bash "KernelSU/kernel/setup.sh" "main"
 
     apply_susfs_patches
-
+  else
+    install_ksu "tiann/KernelSU" "main"
   fi
 
 fi
@@ -207,10 +186,8 @@ if [ "$KSU" = "KSUN" ]; then
   fi
 
   if susfs_included; then
-
     clone_susfs
     apply_susfs_patches
-
   fi
 
 fi
@@ -332,7 +309,7 @@ git clone -q --depth=1 $ANYKERNEL_REPO anykernel
 # Set kernel string in anykernel
 AK3_ZIP_NAME=${AK3_ZIP_NAME//REL/$RELEASE}
 sed -i \
-  "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} ${LINUX_VERSION} ${VARIANT} by Ahmed Al-Nassif (ahmed-alnassif)/g" \
+  "s/kernel.string=.*/kernel.string=${KERNEL_NAME} ${RELEASE} ${LINUX_VERSION} ${VARIANT} for Duchamp by Abir Hasan AHK (ahksoft)/g" \
   $WORKDIR/anykernel/anykernel.sh
 
 # Zip the anykernel

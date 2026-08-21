@@ -3,6 +3,21 @@ name: Kernel Builder
 on:
   workflow_dispatch:
     inputs:
+      KSU:
+        description: "SU Provider"
+        required: true
+        type: choice
+        options:
+          - KSUN
+          - KSU
+          - SKSU
+        default: KSUN
+
+      BUILD_SUSFS:
+        description: "Also build with SUSFS variant"
+        type: boolean
+        default: true
+
       KERNEL_BRANCH:
         description: "Kernel branch to build"
         required: true
@@ -19,11 +34,6 @@ on:
           - blu_spark-15
           - blu_spark-15-61
 
-      BUILD_SUSFS:
-        description: "Also build with SUSFS variant"
-        type: boolean
-        default: true
-
       TODO:
         description: To do
         default: "kernel"
@@ -31,6 +41,14 @@ on:
         options:
           - "kernel"
           - "defconfig"
+
+      BUILD_MODE:
+        description: "Build mode"
+        default: "action"
+        type: choice
+        options:
+          - "action"
+          - "release"
 
       TEST:
         description: debug the pipeline
@@ -74,10 +92,20 @@ jobs:
       - id: set-matrix
         run: |
           BRANCH="${{ github.event.inputs.KERNEL_BRANCH }}"
-          ENTRIES="{\"name\":\"KSUN-${BRANCH}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
+          KSU="${{ github.event.inputs.KSU }}"
+
+          if [[ "$KSU" == "SKSU" ]]; then
+            SUFFIX="SukiSU"
+          elif [[ "$KSU" == "KSU" ]]; then
+            SUFFIX="KernelSU"
+          else
+            SUFFIX="KernelSU-Next"
+          fi
+
+          ENTRIES="{\"name\":\"${SUFFIX}-${BRANCH}\",\"KSU\":\"${KSU}\",\"KSU_SUSFS\":\"false\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
 
           if [[ "${{ github.event.inputs.BUILD_SUSFS }}" == "true" ]]; then
-            ENTRIES="${ENTRIES},{\"name\":\"KSUN+SUSFS-${BRANCH}\",\"KSU\":\"KSUN\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
+            ENTRIES="${ENTRIES},{\"name\":\"${SUFFIX}+SUSFS-${BRANCH}\",\"KSU\":\"${KSU}\",\"KSU_SUSFS\":\"true\",\"KERNEL_BRANCH\":\"${BRANCH}\"}"
           fi
 
           echo "matrix={\"include\":[${ENTRIES}]}" >> $GITHUB_OUTPUT
@@ -229,8 +257,10 @@ jobs:
 
   release:
     needs: build
-    if: github.event.inputs.TODO != 'defconfig'
+    if: ${{ github.event.inputs.BUILD_MODE == 'release' && github.event.inputs.TODO != 'defconfig' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout source
         uses: actions/checkout@v7.0.1
@@ -295,20 +325,21 @@ jobs:
               echo ">This is an empty testing release — please do not download or install!"
               echo ""
             fi
-            echo "### ✨ ${{ env.RELEASE_NAME }} ✨"
+            echo "### ${{ env.RELEASE_NAME }}"
             echo ""
             echo "**Build Information:**"
-            echo "- 🐧 **Kernel:** ${{ env.RELEASE_NAME }}"
-            echo "- 🌿 **Branch:** ${{ github.event.inputs.KERNEL_BRANCH }}"
-            echo "- 🔥 **LTO:** Full LTO"
-            echo "- 🐉 **Kali NetHunter:** $NH_STATUS"
-            echo "- 🐳 **DroidSpaces:** $DROIDSPACES_STATUS"
-            echo "- 🛡️ **SuSFS:** ඞ ${{ env.SUSFS_VERSION }}"
-            echo "- 🥷 **NoMount:** $NM_STATUS"
-            echo "- 🔖 **Version:** ${{ env.LINUX_VERSION }}"
-            echo "- 📦 **Variants:**"
+            echo "- **Kernel:** ${{ env.RELEASE_NAME }}"
+            echo "- **Branch:** ${{ github.event.inputs.KERNEL_BRANCH }}"
+            echo "- **LTO:** Full LTO"
+            echo "- **SU Provider:** ${{ github.event.inputs.KSU }}"
+            echo "- **Kali NetHunter:** $NH_STATUS"
+            echo "- **DroidSpaces:** $DROIDSPACES_STATUS"
+            echo "- **SUSFS:** ${{ env.SUSFS_VERSION }}"
+            echo "- **NoMount:** $NM_STATUS"
+            echo "- **Kernel Version:** ${{ env.LINUX_VERSION }}"
+            echo "- **Variants:**"
             echo "$VARIANTS" | sed 's/^/  - /'
-            echo "- ⚙️ **Compiler:** ${{ env.COMPILER_STRING }}"
+            echo "- **Compiler:** ${{ env.COMPILER_STRING }}"
             echo ""
             echo "---"
             echo "**Checksums:**"
